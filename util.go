@@ -50,7 +50,7 @@ func ListenForGracefulShutdown(srv *http.Server) {
 
 
 // ConnectToDatabase returns a database session to the mongo database. Don't forget to defer db.Close()
-func ConnectToDatabase(host string, port string) *mgo.Session {
+func ConnectToDatabase(host string, port string, user string, pass string) *mgo.Session {
 	log.Infof("Mongo database set to " + host + ":" + port)
 	// Using retry because it might not succeed immediately
 	db, err := Retry(5, time.Second, func() (*mgo.Session, error) {
@@ -59,6 +59,7 @@ func ConnectToDatabase(host string, port string) *mgo.Session {
 		if err != nil {
 			return nil, err
 		}
+		// err = db.DB("admin").Login(user, pass)
 		return db, nil
 	})
 	if err != nil {
@@ -69,6 +70,7 @@ func ConnectToDatabase(host string, port string) *mgo.Session {
 
 	return db
 }
+
 
 // Retry attempts to create a database connection several times. Every attempt the sleep timer is doubled.
 func Retry(attempts int, sleep time.Duration, fn func() (*mgo.Session, error)) (*mgo.Session, error) {
@@ -112,3 +114,13 @@ func SendData(w http.ResponseWriter, data interface{}) *AppError {
 	return nil
 }
 
+// ReturnFirstErr returns the first not-nil error from a list of errors.
+// Used to prevent many copies of if err != nil { return err } when they are indepedent
+func ReturnFirstErr(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

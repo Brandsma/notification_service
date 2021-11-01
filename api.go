@@ -14,8 +14,11 @@ import (
 )
 
 func Start(serverHost string, serverPort string, dbHost string, dbPort string) {
+	// Start the Websocket hub
+	go h.run()
+
 	// Get a connection to the database
-	db := ConnectToDatabase(dbHost, dbPort)
+	db := ConnectToDatabase(dbHost, dbPort, ENV_MONGODB_USER, ENV_MONGODB_PASS)
 	defer db.Close() // clean up when we're done
 
 	registerHandlers(db)
@@ -40,10 +43,14 @@ func registerHandlers(db *mgo.Session) {
 
 	// Add a verify email point
 	hSendNotification := Adapt(AppHandler(SendNotification), WithDB(db))
+	hDeleteNotification := Adapt(AppHandler(SendNotification), WithDB(db))
 	hListenForNotification := Adapt(AppHandler(ListenForNotification), WithDB(db))
+	hWebsocketNotifications := AppHandler(serveWs)
 
-	r.Handle("/notification", context.ClearHandler(hSendNotification)).Methods("POST")
-	r.Handle("/notification", context.ClearHandler(hListenForNotification)).Methods("GET")
+	r.Handle("/api/notification/notification", context.ClearHandler(hSendNotification)).Methods("POST")
+	r.Handle("/api/notification/notification", context.ClearHandler(hListenForNotification)).Methods("GET")
+	r.Handle("/api/notification/notification", context.ClearHandler(hDeleteNotification)).Methods("DELETE")
+	r.Handle("/api/notification/ws/notification/{userID}", context.ClearHandler(hWebsocketNotifications))
 
 	log.Infof("Serving API end-points")
 

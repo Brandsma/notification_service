@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
 
@@ -50,7 +51,7 @@ func (s subscription) readPump() {
 		_, msg, err := c.ws.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
-				log.Printf("error: %v", err)
+				log.Errorf("error: %v", err)
 			}
 			break
 		}
@@ -92,18 +93,19 @@ func (s *subscription) writePump() {
 }
 
 // serveWs handles websocket requests from the peer.
-func serveWs(w http.ResponseWriter, r *http.Request) {
+func serveWs(w http.ResponseWriter, r *http.Request) *AppError {
 	vars := mux.Vars(r)
 
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Errorf(err.Error())
-		return
+		return AppErrorf(http.StatusInternalServerError, err, "WSConnectError", "Could not establish WS connection")
 	}
 	c := &connection{send: make(chan []byte, 256), ws: ws}
 	s := subscription{c, vars["userID"]}
 	h.register <- s
 	go s.writePump()
 	go s.readPump()
+	return nil
 }
